@@ -1,0 +1,851 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/sejalwalia188-a11y/demo-repo/blob/main/Sejal_ECHO_notebook\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 146,
+      "metadata": {
+        "id": "AIGJGU73MS-4"
+      },
+      "outputs": [],
+      "source": [
+        "import numpy as np\n",
+        "import pandas as pd\n",
+        "import seaborn as sns\n",
+        "import matplotlib.pyplot as plt\n",
+        "import os\n",
+        "import librosa"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 147,
+      "metadata": {
+        "id": "3afX_EmpNv7z"
+      },
+      "outputs": [],
+      "source": [
+        "\n",
+        "AUDIO_DIR=\"/content/drive/MyDrive/emotion_recognition_task/audio\"\n",
+        "EEG_DIR=\"/content/drive/MyDrive/emotion_recognition_task/embeddings\"\n",
+        "CSV_PATH=\"/content/drive/MyDrive/emotion_recognition_task/emotion_configs.csv\"\n",
+        "SAVE_EMBEDDINGS_PATH=\"/content/drive/MyDrive/new.npz_\""
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 148,
+      "metadata": {
+        "id": "m43BtehyXar1"
+      },
+      "outputs": [],
+      "source": [
+        "TARGET_SAMPLE_RATE=16000\n",
+        "MAX_AUDIO_SAMPLES=16000*5"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 149,
+      "metadata": {
+        "id": "He_QbIj4XrQY"
+      },
+      "outputs": [],
+      "source": [
+        "LABLE_MAPPING={'anger':0,'disgust':1,'fear':2,'happy':3,'neutral':4,'sad':5,'surprise':6}"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 150,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "C-8C8Rc1acs1",
+        "outputId": "01b6f836-dbbc-40ac-fff9-9dadb92dce7d"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Execution Target Device: cpu\n"
+          ]
+        }
+      ],
+      "source": [
+        "import torch\n",
+        "device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n",
+        "print(f\"Execution Target Device: {device}\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 151,
+      "metadata": {
+        "id": "2xi1dFnSa9io"
+      },
+      "outputs": [],
+      "source": [
+        "df_1 = pd.read_csv(CSV_PATH, nrows=5)\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 152,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 206
+        },
+        "id": "6H9rUC--gzJZ",
+        "outputId": "b631343e-9eaa-4241-fa6d-d061d3775a4a"
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "   subject  trial  emotion_num  emotion           audio_wav_filepath  \\\n",
+              "0        1      3           10      sad  audio/s01/t003/s01_t003.wav   \n",
+              "1        1      9           14  neutral  audio/s01/t009/s01_t009.wav   \n",
+              "2        1     14            2    anger  audio/s01/t014/s01_t014.wav   \n",
+              "3        1     15            4  disgust  audio/s01/t015/s01_t015.wav   \n",
+              "4        1     27           10      sad  audio/s01/t027/s01_t027.wav   \n",
+              "\n",
+              "                          brain_embedding_filepath  embedding_dim  \n",
+              "0  embeddings/s01/t003/cbramod_trial_embedding.npy            200  \n",
+              "1  embeddings/s01/t009/cbramod_trial_embedding.npy            200  \n",
+              "2  embeddings/s01/t014/cbramod_trial_embedding.npy            200  \n",
+              "3  embeddings/s01/t015/cbramod_trial_embedding.npy            200  \n",
+              "4  embeddings/s01/t027/cbramod_trial_embedding.npy            200  "
+            ],
+            "text/html": [
+              "\n",
+              "  <div id=\"df-18bf9d80-5e18-4f04-95f7-375e5d55f4e2\" class=\"colab-df-container\">\n",
+              "    <div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>subject</th>\n",
+              "      <th>trial</th>\n",
+              "      <th>emotion_num</th>\n",
+              "      <th>emotion</th>\n",
+              "      <th>audio_wav_filepath</th>\n",
+              "      <th>brain_embedding_filepath</th>\n",
+              "      <th>embedding_dim</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>1</td>\n",
+              "      <td>3</td>\n",
+              "      <td>10</td>\n",
+              "      <td>sad</td>\n",
+              "      <td>audio/s01/t003/s01_t003.wav</td>\n",
+              "      <td>embeddings/s01/t003/cbramod_trial_embedding.npy</td>\n",
+              "      <td>200</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>1</td>\n",
+              "      <td>9</td>\n",
+              "      <td>14</td>\n",
+              "      <td>neutral</td>\n",
+              "      <td>audio/s01/t009/s01_t009.wav</td>\n",
+              "      <td>embeddings/s01/t009/cbramod_trial_embedding.npy</td>\n",
+              "      <td>200</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>1</td>\n",
+              "      <td>14</td>\n",
+              "      <td>2</td>\n",
+              "      <td>anger</td>\n",
+              "      <td>audio/s01/t014/s01_t014.wav</td>\n",
+              "      <td>embeddings/s01/t014/cbramod_trial_embedding.npy</td>\n",
+              "      <td>200</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>1</td>\n",
+              "      <td>15</td>\n",
+              "      <td>4</td>\n",
+              "      <td>disgust</td>\n",
+              "      <td>audio/s01/t015/s01_t015.wav</td>\n",
+              "      <td>embeddings/s01/t015/cbramod_trial_embedding.npy</td>\n",
+              "      <td>200</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>1</td>\n",
+              "      <td>27</td>\n",
+              "      <td>10</td>\n",
+              "      <td>sad</td>\n",
+              "      <td>audio/s01/t027/s01_t027.wav</td>\n",
+              "      <td>embeddings/s01/t027/cbramod_trial_embedding.npy</td>\n",
+              "      <td>200</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "</div>\n",
+              "    <div class=\"colab-df-buttons\">\n",
+              "\n",
+              "  <div class=\"colab-df-container\">\n",
+              "    <button class=\"colab-df-convert\" onclick=\"convertToInteractive('df-18bf9d80-5e18-4f04-95f7-375e5d55f4e2')\"\n",
+              "            title=\"Convert this dataframe to an interactive table.\"\n",
+              "            style=\"display:none;\">\n",
+              "\n",
+              "  <svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\">\n",
+              "    <path d=\"M120-120v-720h720v720H120Zm60-500h600v-160H180v160Zm220 220h160v-160H400v160Zm0 220h160v-160H400v160ZM180-400h160v-160H180v160Zm440 0h160v-160H620v160ZM180-180h160v-160H180v160Zm440 0h160v-160H620v160Z\"/>\n",
+              "  </svg>\n",
+              "    </button>\n",
+              "\n",
+              "  <style>\n",
+              "    .colab-df-container {\n",
+              "      display:flex;\n",
+              "      gap: 12px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert {\n",
+              "      background-color: #E8F0FE;\n",
+              "      border: none;\n",
+              "      border-radius: 50%;\n",
+              "      cursor: pointer;\n",
+              "      display: none;\n",
+              "      fill: #1967D2;\n",
+              "      height: 32px;\n",
+              "      padding: 0 0 0 0;\n",
+              "      width: 32px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert:hover {\n",
+              "      background-color: #E2EBFA;\n",
+              "      box-shadow: 0px 1px 2px rgba(60, 64, 67, 0.3), 0px 1px 3px 1px rgba(60, 64, 67, 0.15);\n",
+              "      fill: #174EA6;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-buttons div {\n",
+              "      margin-bottom: 4px;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert {\n",
+              "      background-color: #3B4455;\n",
+              "      fill: #D2E3FC;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert:hover {\n",
+              "      background-color: #434B5C;\n",
+              "      box-shadow: 0px 1px 3px 1px rgba(0, 0, 0, 0.15);\n",
+              "      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));\n",
+              "      fill: #FFFFFF;\n",
+              "    }\n",
+              "  </style>\n",
+              "\n",
+              "    <script>\n",
+              "      const buttonEl =\n",
+              "        document.querySelector('#df-18bf9d80-5e18-4f04-95f7-375e5d55f4e2 button.colab-df-convert');\n",
+              "      buttonEl.style.display =\n",
+              "        google.colab.kernel.accessAllowed ? 'block' : 'none';\n",
+              "\n",
+              "      async function convertToInteractive(key) {\n",
+              "        const element = document.querySelector('#df-18bf9d80-5e18-4f04-95f7-375e5d55f4e2');\n",
+              "        const dataTable =\n",
+              "          await google.colab.kernel.invokeFunction('convertToInteractive',\n",
+              "                                                    [key], {});\n",
+              "        if (!dataTable) return;\n",
+              "\n",
+              "        const docLinkHtml = 'Like what you see? Visit the ' +\n",
+              "          '<a target=\"_blank\" href=https://colab.research.google.com/notebooks/data_table.ipynb>data table notebook</a>'\n",
+              "          + ' to learn more about interactive tables.';\n",
+              "        element.innerHTML = '';\n",
+              "        dataTable['output_type'] = 'display_data';\n",
+              "        await google.colab.output.renderOutput(dataTable, element);\n",
+              "        const docLink = document.createElement('div');\n",
+              "        docLink.innerHTML = docLinkHtml;\n",
+              "        element.appendChild(docLink);\n",
+              "      }\n",
+              "    </script>\n",
+              "  </div>\n",
+              "\n",
+              "\n",
+              "    </div>\n",
+              "  </div>\n"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "dataframe",
+              "variable_name": "df_1",
+              "summary": "{\n  \"name\": \"df_1\",\n  \"rows\": 5,\n  \"fields\": [\n    {\n      \"column\": \"subject\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0,\n        \"min\": 1,\n        \"max\": 1,\n        \"num_unique_values\": 1,\n        \"samples\": [\n          1\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"trial\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 8,\n        \"min\": 3,\n        \"max\": 27,\n        \"num_unique_values\": 5,\n        \"samples\": [\n          9\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"emotion_num\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 4,\n        \"min\": 2,\n        \"max\": 14,\n        \"num_unique_values\": 4,\n        \"samples\": [\n          14\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"emotion\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 4,\n        \"samples\": [\n          \"neutral\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"audio_wav_filepath\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 5,\n        \"samples\": [\n          \"audio/s01/t009/s01_t009.wav\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"brain_embedding_filepath\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 5,\n        \"samples\": [\n          \"embeddings/s01/t009/cbramod_trial_embedding.npy\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"embedding_dim\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0,\n        \"min\": 200,\n        \"max\": 200,\n        \"num_unique_values\": 1,\n        \"samples\": [\n          200\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}"
+            }
+          },
+          "metadata": {},
+          "execution_count": 152
+        }
+      ],
+      "source": [
+        "df_1.head()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 153,
+      "metadata": {
+        "id": "HtbatwcvkvLj"
+      },
+      "outputs": [],
+      "source": [
+        "import torchaudio\n",
+        "import torch.nn as nn\n",
+        "import torch.nn.functional as F\n",
+        "import torch.optim as optim\n",
+        "import torchaudio.transforms as T\n",
+        "import tensorflow as tf"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 154,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "4-IPCxfcxlT1",
+        "outputId": "4bd8a76f-a72a-4919-fd7d-6760b71b8109"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Requirement already satisfied: resampy in /usr/local/lib/python3.12/dist-packages (0.4.3)\n",
+            "Requirement already satisfied: soundfile in /usr/local/lib/python3.12/dist-packages (0.13.1)\n",
+            "Requirement already satisfied: numpy>=1.17 in /usr/local/lib/python3.12/dist-packages (from resampy) (2.0.2)\n",
+            "Requirement already satisfied: numba>=0.53 in /usr/local/lib/python3.12/dist-packages (from resampy) (0.60.0)\n",
+            "Requirement already satisfied: cffi>=1.0 in /usr/local/lib/python3.12/dist-packages (from soundfile) (2.0.0)\n",
+            "Requirement already satisfied: pycparser in /usr/local/lib/python3.12/dist-packages (from cffi>=1.0->soundfile) (3.0)\n",
+            "Requirement already satisfied: llvmlite<0.44,>=0.43.0dev0 in /usr/local/lib/python3.12/dist-packages (from numba>=0.53->resampy) (0.43.0)\n"
+          ]
+        }
+      ],
+      "source": [
+        "!pip install resampy soundfile"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 155,
+      "metadata": {
+        "id": "bUYM1UeClfiT"
+      },
+      "outputs": [],
+      "source": [
+        "import tensorflow_hub as hub"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 156,
+      "metadata": {
+        "id": "jYHPh9nvxpTb"
+      },
+      "outputs": [],
+      "source": [
+        "vggish_model = hub.load('https://kaggle.com/models/google/vggish/frameworks/TensorFlow2/variations/vggish/versions/1')\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 157,
+      "metadata": {
+        "id": "gUH4g3P8n5dX"
+      },
+      "outputs": [],
+      "source": [
+        "from sklearn.base import BaseEstimator, TransformerMixin"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 158,
+      "metadata": {
+        "id": "oICOr_5wUbSF"
+      },
+      "outputs": [],
+      "source": [
+        "class VGGishFeatureExtractor(BaseEstimator, TransformerMixin):\n",
+        "    def extract_vggish_embeddings(self, file_path):\n",
+        "        sample, _ = librosa.load(file_path, sr=TARGET_SAMPLE_RATE)\n",
+        "\n",
+        "        if len(sample) < MAX_AUDIO_SAMPLES:\n",
+        "            sample = np.pad(sample, (0, MAX_AUDIO_SAMPLES - len(sample)))#Padding\n",
+        "        else:\n",
+        "            sample = sample[:MAX_AUDIO_SAMPLES]\n",
+        "\n",
+        "        if np.max(np.abs(sample)) > 0:#Normali\n",
+        "            sample = sample / np.max(np.abs(sample))\n",
+        "\n",
+        "        sample_tf = tf.constant(sample, dtype=tf.float32)\n",
+        "        embeddings = vggish_model(sample_tf)\n",
+        "\n",
+        "\n",
+        "        return embeddings.numpy()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 159,
+      "metadata": {
+        "id": "NOWGP2ycYHSd"
+      },
+      "outputs": [],
+      "source": [
+        "from torch.utils.data import Dataset, DataLoader"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 160,
+      "metadata": {
+        "id": "NpN0d3O6Zy0U"
+      },
+      "outputs": [],
+      "source": [
+        "class EmotionEEGDataset(Dataset):\n",
+        "    def __init__(self, csv_filepath, audio_dir, eeg_dir, extractor):\n",
+        "        self.data_frame = pd.read_csv(csv_filepath)\n",
+        "        self.audio_dir = audio_dir\n",
+        "        self.eeg_dir = eeg_dir\n",
+        "        self.extractor = extractor\n",
+        "\n",
+        "    def __len__(self):\n",
+        "        return len(self.data_frame)\n",
+        "\n",
+        "    def __getitem__(self, idx):\n",
+        "        row = self.data_frame.iloc[idx]\n",
+        "\n",
+        "\n",
+        "        audio_rel_path = row['audio_wav_filepath'].replace(\"audio/\", \"\", 1) if row['audio_wav_filepath'].startswith(\"audio/\") else row['audio_wav_filepath']\n",
+        "        audio_path = os.path.join(self.audio_dir, audio_rel_path)  #audio loading\n",
+        "\n",
+        "        vggish_frames = self.extractor.extract_vggish_embeddings(audio_path)\n",
+        "        vggish_tensor = torch.tensor(vggish_frames).float().mean(dim=0)\n",
+        "\n",
+        "\n",
+        "        embed_rel_path = row['brain_embedding_filepath'].replace(\"embeddings/\", \"\", 1) if row['brain_embedding_filepath'].startswith(\"embeddings/\") else row['brain_embedding_filepath']\n",
+        "        embed_path = os.path.join(self.eeg_dir, embed_rel_path)\n",
+        "        eeg_tensor = torch.from_numpy(np.load(embed_path)).float()   #embeddings loading\n",
+        "\n",
+        "\n",
+        "        emotion_ans= row['emotion'].strip().lower()   #label loading\n",
+        "        label_tensor = torch.tensor(LABLE_MAPPING[emotion_ans], dtype=torch.long)\n",
+        "\n",
+        "        return vggish_tensor, eeg_tensor, label_tensor"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 161,
+      "metadata": {
+        "id": "vCVcGcfrVJP1"
+      },
+      "outputs": [],
+      "source": [
+        "class BrainProjector(nn.Module):\n",
+        "\n",
+        "    def __init__(self, input_dim=128, output_dim=200):\n",
+        "        super(BrainProjector, self).__init__()\n",
+        "        self.network = nn.Sequential(\n",
+        "            nn.Linear(input_dim, 128),\n",
+        "            nn.BatchNorm1d(128),\n",
+        "            nn.ReLU(),\n",
+        "            nn.Dropout(0.6),\n",
+        "            nn.Linear(128, output_dim)\n",
+        "        )     #maps 128D to 200D brain one\n",
+        "\n",
+        "    def forward(self, x):\n",
+        "        return self.network(x)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 162,
+      "metadata": {
+        "id": "9AO2WZo0VL6E"
+      },
+      "outputs": [],
+      "source": [
+        "class EmotionClassifier(nn.Module):\n",
+        "\n",
+        "    def __init__(self, input_dim, num_classes=7):\n",
+        "        super(EmotionClassifier, self).__init__()\n",
+        "        self.network = nn.Sequential(\n",
+        "            nn.Linear(input_dim, 64),\n",
+        "            nn.BatchNorm1d(64),\n",
+        "            nn.ReLU(),\n",
+        "            nn.Dropout(0.3),\n",
+        "            nn.Linear(64, num_classes)\n",
+        "        )\n",
+        "\n",
+        "    def forward(self, x):\n",
+        "        return self.network(x)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 163,
+      "metadata": {
+        "id": "JxeCjVCdVQaQ"
+      },
+      "outputs": [],
+      "source": [
+        "def train_alignment(projector, dataloader, epochs=20):\n",
+        "    optimizer = optim.Adam(projector.parameters(), lr=1e-3,weight_decay=1e-4  )\n",
+        "    criterion = nn.MSELoss()\n",
+        "    projector.train()\n",
+        "    print(\"Alignment phase\")\n",
+        "    for epoch in range(epochs):\n",
+        "        epoch_loss = 0\n",
+        "        for vggish_feats, true_eeg, _ in dataloader:\n",
+        "            vggish_feats, true_eeg = vggish_feats.to(device), true_eeg.to(device)\n",
+        "\n",
+        "            optimizer.zero_grad()\n",
+        "            projected = projector(vggish_feats)\n",
+        "            loss = criterion(projected, true_eeg)\n",
+        "            loss.backward()\n",
+        "            optimizer.step()\n",
+        "            epoch_loss += loss.item()\n",
+        "\n",
+        "        print(f\"Epoch {epoch+1}/{epochs} | MSE loss: {epoch_loss/len(dataloader):.4f}\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 164,
+      "metadata": {
+        "id": "_wBkLfCDVwJa"
+      },
+      "outputs": [],
+      "source": [
+        "def extract_and_save_refined_embeddings(projector, dataloader, save_path):\n",
+        "    projector.eval()\n",
+        "    all_refined_embeddings = []\n",
+        "    all_labels = []\n",
+        "\n",
+        "    print(f\"\\nsaving refined embeddings to: {save_path}\")\n",
+        "\n",
+        "    with torch.no_grad():\n",
+        "        for vggish_feats, _, labels in dataloader:\n",
+        "            vggish_feats = vggish_feats.to(device)\n",
+        "            refined_feats = projector(vggish_feats)\n",
+        "\n",
+        "            all_refined_embeddings.append(refined_feats.cpu().numpy())\n",
+        "            all_labels.append(labels.numpy())\n",
+        "\n",
+        "    final_embeddings = np.vstack(all_refined_embeddings)\n",
+        "    final_labels = np.concatenate(all_labels)\n",
+        "\n",
+        "    np.savez(save_path, embeddings=final_embeddings, labels=final_labels)\n",
+        "    print(f\"Saved {final_embeddings.shape[0]} embeddings of shape {final_embeddings.shape[1]}-D.\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 165,
+      "metadata": {
+        "id": "RZeihA01V0iY"
+      },
+      "outputs": [],
+      "source": [
+        "def train_classifier(classifier, dataloader, projector=None, epochs=20):\n",
+        "    optimizer = optim.Adam(classifier.parameters(), lr=1e-3)\n",
+        "    criterion = nn.CrossEntropyLoss()\n",
+        "\n",
+        "\n",
+        "    if projector: projector.eval()  # freezinf projection block\n",
+        "    classifier.train()\n",
+        "    print(\"Classification phase\")\n",
+        "    for epoch in range(epochs):\n",
+        "        epoch_loss = 0\n",
+        "        for vggish_feats, _, labels in dataloader:\n",
+        "            vggish_feats, labels = vggish_feats.to(device), labels.to(device)\n",
+        "            optimizer.zero_grad()\n",
+        "            if projector:\n",
+        "                with torch.no_grad():\n",
+        "                    features = projector(vggish_feats)\n",
+        "            else:\n",
+        "                features = vggish_feats\n",
+        "\n",
+        "            logits = classifier(features)\n",
+        "            loss = criterion(logits, labels)\n",
+        "            loss.backward()\n",
+        "            optimizer.step()\n",
+        "            epoch_loss += loss.item()\n",
+        "\n",
+        "        print(f\"Epoch {epoch+1}/{epochs} CE Loss: {epoch_loss/len(dataloader):.4f}\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 166,
+      "metadata": {
+        "id": "CkZ9G09xZO9q"
+      },
+      "outputs": [],
+      "source": [
+        "from sklearn.base import BaseEstimator, TransformerMixin\n",
+        "from sklearn.metrics import accuracy_score, f1_score, confusion_matrix"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 167,
+      "metadata": {
+        "id": "JolyjwxYV8l_"
+      },
+      "outputs": [],
+      "source": [
+        "def evaluate_model(classifier, dataloader, projector=None):\n",
+        "    classifier.eval()\n",
+        "    if projector: projector.eval()\n",
+        "\n",
+        "    all_preds, all_labels = [], []\n",
+        "    with torch.no_grad():\n",
+        "        for vggish_feats, _, labels in dataloader:\n",
+        "            vggish_feats = vggish_feats.to(device)\n",
+        "\n",
+        "            features = projector(vggish_feats) if projector else vggish_feats\n",
+        "            logits = classifier(features)\n",
+        "            preds = torch.argmax(logits, dim=1)\n",
+        "\n",
+        "            all_preds.extend(preds.cpu().numpy())\n",
+        "            all_labels.extend(labels.numpy())\n",
+        "\n",
+        "    acc = accuracy_score(all_labels, all_preds)\n",
+        "    mac_f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)\n",
+        "    wgt_f1 = f1_score(all_labels, all_preds, average='weighted', zero_division=0)\n",
+        "    cm = confusion_matrix(all_labels, all_preds)\n",
+        "\n",
+        "    print(f\"Accuracy:    {acc:.4f}\")\n",
+        "    print(f\"Macro-F1:    {mac_f1:.4f}\")\n",
+        "    print(f\"Weighted-F1: {wgt_f1:.4f}\")\n",
+        "    print(\"Confusion Matrix:\")\n",
+        "    print(cm)\n",
+        "\n",
+        "    return acc"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 168,
+      "metadata": {
+        "id": "Mnp95VXVWARx"
+      },
+      "outputs": [],
+      "source": [
+        "if __name__ == \"__main__\":\n",
+        "    extractor = VGGishFeatureExtractor()\n",
+        "\n",
+        "\n",
+        "    full_dataset = EmotionEEGDataset(CSV_PATH, AUDIO_DIR, EEG_DIR, extractor)\n",
+        "    train_size = int(0.8 * len(full_dataset))     ## 80/20 train/test split\n",
+        "    test_size = len(full_dataset) - train_size\n",
+        "    train_dataset, test_dataset = torch.utils.data.random_split(full_dataset, [train_size, test_size])\n",
+        "\n",
+        "    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)\n",
+        "    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 169,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "1rG3wYnnWDJr",
+        "outputId": "7a69c3ec-2788-45a2-d8ff-e363c007ee2b"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Training baseline(Raw)\n",
+            "Classification phase\n",
+            "Epoch 1/20 CE Loss: 1.9454\n",
+            "Epoch 2/20 CE Loss: 1.7987\n",
+            "Epoch 3/20 CE Loss: 1.7360\n",
+            "Epoch 4/20 CE Loss: 1.6667\n",
+            "Epoch 5/20 CE Loss: 1.6295\n",
+            "Epoch 6/20 CE Loss: 1.5743\n",
+            "Epoch 7/20 CE Loss: 1.5850\n",
+            "Epoch 8/20 CE Loss: 1.4922\n",
+            "Epoch 9/20 CE Loss: 1.4666\n",
+            "Epoch 10/20 CE Loss: 1.4476\n",
+            "Epoch 11/20 CE Loss: 1.3813\n",
+            "Epoch 12/20 CE Loss: 1.3617\n",
+            "Epoch 13/20 CE Loss: 1.3402\n",
+            "Epoch 14/20 CE Loss: 1.2985\n",
+            "Epoch 15/20 CE Loss: 1.2665\n",
+            "Epoch 16/20 CE Loss: 1.2649\n",
+            "Epoch 17/20 CE Loss: 1.2474\n",
+            "Epoch 18/20 CE Loss: 1.2155\n",
+            "Epoch 19/20 CE Loss: 1.2168\n",
+            "Epoch 20/20 CE Loss: 1.1508\n",
+            "EVALUATING IT\n",
+            "Accuracy:    0.3800\n",
+            "Macro-F1:    0.3745\n",
+            "Weighted-F1: 0.3800\n",
+            "Confusion Matrix:\n",
+            "[[ 2  1  1  3  2  1  2]\n",
+            " [ 2  6  4  1  1  1  0]\n",
+            " [ 2  1  6  0  0  2  2]\n",
+            " [ 3  0  3  4  3  2  1]\n",
+            " [ 0  1  1  3 10  1  0]\n",
+            " [ 0  3  3  0  0  5  0]\n",
+            " [ 3  2  3  4  0  0  5]]\n"
+          ]
+        }
+      ],
+      "source": [
+        "\n",
+        "print(\"Training baseline(Raw)\")\n",
+        "\n",
+        "baseline_classifier = EmotionClassifier(input_dim=128).to(device)\n",
+        "train_classifier(baseline_classifier, train_loader, projector=None)\n",
+        "print(\"EVALUATING IT\")\n",
+        "base_acc = evaluate_model(baseline_classifier, test_loader, projector=None)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "background_save": true,
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "YdPNqZXaWNbV",
+        "outputId": "bd429cd6-71bd-4371-bf67-f539c177e53e"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Training Brain Constr\n",
+            "Alignment phase\n",
+            "Epoch 1/20 | MSE loss: 0.3039\n",
+            "Epoch 2/20 | MSE loss: 0.1828\n",
+            "Epoch 3/20 | MSE loss: 0.1222\n",
+            "Epoch 4/20 | MSE loss: 0.0879\n",
+            "Epoch 5/20 | MSE loss: 0.0640\n",
+            "Epoch 6/20 | MSE loss: 0.0484\n",
+            "Epoch 7/20 | MSE loss: 0.0349\n",
+            "Epoch 8/20 | MSE loss: 0.0269\n",
+            "Epoch 9/20 | MSE loss: 0.0203\n"
+          ]
+        }
+      ],
+      "source": [
+        "print(\"Training Brain Constr\")\n",
+        "projector = BrainProjector(input_dim=128, output_dim=200).to(device)\n",
+        "train_alignment(projector, train_loader)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "background_save": true
+        },
+        "id": "lNocJNtNWY8C"
+      },
+      "outputs": [],
+      "source": [
+        "full_loader = DataLoader(full_dataset, batch_size=16, shuffle=False)\n",
+        "extract_and_save_refined_embeddings(projector, full_loader, save_path=SAVE_EMBEDDINGS_PATH)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "1Ah2Rl8DWd-g"
+      },
+      "outputs": [],
+      "source": [
+        "bcnn_classifier = EmotionClassifier(input_dim=200).to(device)\n",
+        "train_classifier(bcnn_classifier, train_loader, projector=projector)\n",
+        "\n",
+        "print(\"Evaluation brain cons\")\n",
+        "bcnn_acc = evaluate_model(bcnn_classifier, test_loader, projector=projector)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "OIY_imnkWjHA"
+      },
+      "outputs": [],
+      "source": [
+        "\n",
+        "print(\"RESULTS\")\n",
+        "print(f\"Baseline(Raw) Accuracy: {base_acc*100:.2f}%\")\n",
+        "print(f\"Brain-Constr Accuracy: {bcnn_acc*100:.2f}%\")\n",
+        "print(f\"Improvement over baseline: {(bcnn_acc - base_acc)*100:.2f}%\")\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "khINtOyxrh4c"
+      },
+      "source": []
+    }
+  ],
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "mount_file_id": "1n4O8PkOAVsNOgiY5r3OQoYqr4XdWLOul",
+      "authorship_tag": "ABX9TyNS2YRMHlJ6wSgdYt4fkDYH",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
